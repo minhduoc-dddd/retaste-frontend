@@ -1,152 +1,177 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Plus, Minus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Trash2, Plus, Minus, ShoppingBag, CreditCard, Truck, CheckCircle, QrCode } from 'lucide-react';
 import axios from 'axios';
 
-// Bổ sung thêm props `user`
 const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  // State tạm thời cho thông tin giao hàng
-  const [phone, setPhone] = useState('0901234567');
-  const [address, setAddress] = useState('Đại học Duy Tân, Đà Nẵng');
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  const navigate = useNavigate(); 
+  const [customerInfo, setCustomerInfo] = useState({
+    name: user?.name || user?.full_name || '',
+    phone: '',
+    address: '',
+  });
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = cart.length > 0 ? 15000 : 0;
-  const total = subtotal + deliveryFee;
+  const [sysSettings, setSysSettings] = useState({
+    enable_cod: true, enable_momo: true, enable_bank: true, bank_info: {}
+  });
 
-  const handleCheckout = async () => {
-    // Yêu cầu phải đăng nhập mới được đặt hàng
-    if (!user) {
-      alert("Vui lòng đăng nhập để tiến hành đặt hàng!");
-      navigate('/login');
-      return;
-    }
+  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [loading, setLoading] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
-    if (cart.length === 0) return;
-    
-    setIsProcessing(true);
-    try {
-      // 1. Dùng dữ liệu thật của User đang đăng nhập
-      const orderData = {
-        user_id: user.id, // Lấy ID thật từ DB của khách hàng
-        customer_info: {
-          name: user.name, // Lấy tên thật
-          phone: phone,
-          address: address
-        },
-        items: cart.map(item => ({
-          product_id: item.id,
-          product_name: item.name,
-          price: item.price,
-          quantity: item.quantity
-        })),
-        total_amount: total
-      };
+  useEffect(() => {
+    if (user) setCustomerInfo(prev => ({ ...prev, name: prev.name || user.name || user.full_name || '' }));
+  }, [user]);
 
-      await axios.post('http://localhost:5000/api/orders', orderData);
-      
-      alert('🎉 Đặt hàng thành công! Cửa hàng đang chuẩn bị món cho bạn.');
+  // Lấy cấu hình thanh toán động từ Backend
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/settings');
+        if (res.data) setSysSettings(res.data);
+      } catch (error) { console.log('Không lấy được cấu hình'); }
+    };
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    const resultCode = searchParams.get('resultCode');
+    if (resultCode === '0') {
+      setPaymentSuccess(true);
       clearCart();
-      navigate('/'); 
-      
+    } else if (resultCode && resultCode !== '0') {
+      alert('Giao dịch MoMo bị hủy.'); navigate('/cart', { replace: true });
+    }
+  }, [searchParams]);
+
+  const totalAmount = cart.reduce((sum, item) => sum + Number(item.base_price || item.price || 0) * item.quantity, 0);
+
+  const handleCheckout = async (e) => {
+    e.preventDefault();
+    if (cart.length === 0) return alert('Giỏ hàng đang trống!');
+    
+    setLoading(true);
+    const orderPayload = {
+      customer_info: { name: customerInfo.name, phone: customerInfo.phone, address: customerInfo.address },
+      items: cart.map(item => ({
+        product_id: item._id || item.id,
+        product_name: item.product_name || item.name,
+        quantity: item.quantity,
+        price: Number(item.base_price || item.price || 0),
+      })),
+      total_amount: totalAmount,
+      payment_method: paymentMethod, // Lấy đúng tên phương thức lưu vào DB
+      status: 'cho_duyet',
+    };
+
+    try {
+      if (paymentMethod === 'momo') {
+        const momoRes = await axios.post('http://localhost:5000/api/payment/momo', {
+          amount: Math.round(totalAmount),
+          orderInfo: `Thanh toan RETASTE - KH ${customerInfo.name}`,
+        });
+        if (momoRes.data?.payUrl) { window.location.href = momoRes.data.payUrl; return; }
+      } else {
+        // Xử lý chung cho COD và Chuyển khoản VietQR
+        await axios.post('http://localhost:5000/api/orders', orderPayload);
+        setPaymentSuccess(true);
+        clearCart();
+      }
     } catch (error) {
-      console.error("Lỗi khi đặt hàng:", error);
-      alert('❌ Có lỗi xảy ra khi đặt hàng. Vui lòng kiểm tra lại Server Backend!');
-      setIsProcessing(false);
+      console.error(error);
+      alert('Có lỗi xảy ra khi xử lý đơn hàng. Vui lòng kiểm tra lại!');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (cart.length === 0) {
+  // Màn hình thành công (Có hiển thị hướng dẫn quét mã QR nếu chọn VietQR)
+  if (paymentSuccess) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <ShoppingCart className="w-24 h-24 text-gray-300 mb-6" />
-        <h2 className="text-2xl font-bold text-gray-700 mb-2">Giỏ hàng của bạn đang trống</h2>
-        <Link to="/menu" className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-orange-600 transition shadow-lg mt-4">
-          Xem thực đơn
-        </Link>
+      <div className="container mx-auto px-4 py-16 text-center max-w-lg">
+        <div className="bg-white p-8 rounded-2xl shadow-md border border-green-100">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Đặt hàng thành công!</h2>
+          
+          {paymentMethod === 'bank' ? (
+            <div className="mt-4 mb-6">
+              <p className="text-gray-600 mb-4">Vui lòng dùng App Ngân hàng quét mã QR dưới đây để thanh toán tự động:</p>
+              <img 
+                src={`https://img.vietqr.io/image/${sysSettings.bank_info?.bank_id}-${sysSettings.bank_info?.account_no}-compact2.png?amount=${totalAmount}&addInfo=RETASTE ${customerInfo.name}&accountName=${sysSettings.bank_info?.account_name}`} 
+                alt="VietQR" 
+                className="w-64 h-64 mx-auto rounded-xl shadow-lg border"
+              />
+              <p className="mt-4 text-sm font-bold text-primary">Đơn hàng sẽ được xử lý ngay khi nhận được thanh toán.</p>
+            </div>
+          ) : (
+            <p className="text-gray-600 mb-6">Đơn hàng của bạn đã được ghi nhận. Nhà hàng đang chuẩn bị món!</p>
+          )}
+
+          <Link to="/menu" className="inline-block bg-primary hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl shadow transition">Tiếp tục mua sắm</Link>
+        </div>
       </div>
     );
   }
 
+  if (cart.length === 0) return (<div className="container mx-auto py-16 text-center"><h2 className="text-2xl font-bold">Giỏ hàng trống</h2><Link to="/menu" className="mt-4 inline-block bg-primary text-white px-6 py-3 rounded-xl">Xem thực đơn</Link></div>);
+
   return (
-    <div className="container mx-auto px-4 max-w-6xl">
-      <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center">
-        <ShoppingCart className="w-8 h-8 mr-3 text-primary" /> Giỏ hàng của bạn
-      </h2>
+    <div className="container mx-auto px-4">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Giỏ hàng & Thanh toán</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Cột Trái: Chi tiết món ăn */}
-        <div className="lg:col-span-2 space-y-4">
-          {cart.map((item) => (
-            <div key={item.id} className="bg-white p-4 rounded-2xl shadow-sm flex items-center border border-gray-100">
-              <img src={item.img} alt={item.name} className="w-24 h-24 object-cover rounded-xl" />
-              <div className="ml-4 flex-grow">
-                <h3 className="text-lg font-bold text-gray-800">{item.name}</h3>
-                <p className="text-primary font-bold">{item.price.toLocaleString('vi-VN')} đ</p>
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
+          <h2 className="text-xl font-bold text-gray-800 mb-4 border-b pb-3">Món ăn đã chọn ({cart.length})</h2>
+          <div className="divide-y">
+            {cart.map((item) => (
+              <div key={item._id || item.id} className="py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4"><img src={item.image_url || item.image || 'https://via.placeholder.com/80'} className="w-16 h-16 rounded-xl object-cover" /><div><h3 className="font-bold">{item.product_name || item.name}</h3><p className="text-primary font-bold">{Number(item.base_price || item.price || 0).toLocaleString('vi-VN')} đ</p></div></div>
+                <div className="flex items-center gap-3"><button onClick={() => updateQuantity(item._id || item.id, -1)} className="p-1.5 bg-gray-100 rounded-lg"><Minus className="w-4 h-4" /></button><span className="font-bold w-6 text-center">{item.quantity}</span><button onClick={() => updateQuantity(item._id || item.id, 1)} className="p-1.5 bg-gray-100 rounded-lg"><Plus className="w-4 h-4" /></button><button onClick={() => removeItem(item._id || item.id)} className="ml-2 p-2 text-red-500"><Trash2 className="w-5 h-5" /></button></div>
               </div>
-              <div className="flex items-center bg-gray-100 rounded-lg px-2 py-1 mx-4">
-                <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:text-primary"><Minus className="w-4 h-4"/></button>
-                <span className="w-8 text-center font-medium">{item.quantity}</span>
-                <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:text-primary"><Plus className="w-4 h-4"/></button>
-              </div>
-              <div className="text-right min-w-[100px]">
-                <p className="font-bold text-gray-800 mb-2">{(item.price * item.quantity).toLocaleString('vi-VN')} đ</p>
-                <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700 text-sm flex items-center justify-end w-full">
-                  <Trash2 className="w-4 h-4 mr-1" /> Xóa
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-        
-        {/* Cột Phải: Tóm tắt đơn hàng và Thông tin giao hàng */}
-        <div className="space-y-6">
-          
-          {/* Thông tin giao hàng nhanh */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Thông tin nhận hàng</h3>
-            {!user && <p className="text-sm text-red-500 mb-4">*Vui lòng đăng nhập để đặt hàng</p>}
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Số điện thoại</label>
-                <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2" />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Địa chỉ giao hàng</label>
-                <textarea value={address} onChange={e => setAddress(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2" rows="2"></textarea>
-              </div>
-            </div>
+
+        <form onSubmit={handleCheckout} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
+          <h2 className="text-xl font-bold text-gray-800 mb-4 border-b pb-3">Thông tin giao hàng</h2>
+          <div className="space-y-4 mb-6">
+            <div><label className="block text-sm font-medium mb-1">Họ và tên (*)</label><input type="text" required value={customerInfo.name} onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})} className="w-full p-2.5 border rounded-xl" /></div>
+            <div><label className="block text-sm font-medium mb-1">Số điện thoại (*)</label><input type="tel" required value={customerInfo.phone} onChange={e => setCustomerInfo({...customerInfo, phone: e.target.value})} className="w-full p-2.5 border rounded-xl" /></div>
+            <div><label className="block text-sm font-medium mb-1">Địa chỉ (*)</label><textarea required rows="2" value={customerInfo.address} onChange={e => setCustomerInfo({...customerInfo, address: e.target.value})} className="w-full p-2.5 border rounded-xl" /></div>
           </div>
 
-          {/* Nút Thanh toán */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
-            <h3 className="text-xl font-bold text-gray-800 mb-6 border-b pb-4">Tóm tắt đơn hàng</h3>
-            <div className="space-y-4 text-gray-600 mb-6">
-              <div className="flex justify-between">
-                <span>Tạm tính:</span>
-                <span className="font-medium text-gray-800">{subtotal.toLocaleString('vi-VN')} đ</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Phí giao hàng:</span>
-                <span className="font-medium text-gray-800">{deliveryFee.toLocaleString('vi-VN')} đ</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-center border-t pt-4 mb-6">
-              <span className="text-lg font-bold text-gray-800">Tổng cộng:</span>
-              <span className="text-2xl font-bold text-primary">{total.toLocaleString('vi-VN')} đ</span>
-            </div>
-            <button 
-              onClick={handleCheckout} 
-              disabled={isProcessing}
-              className={`w-full text-white font-bold py-4 rounded-xl transition shadow-lg text-lg ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-orange-600'}`}
-            >
-              {isProcessing ? 'ĐANG XỬ LÝ...' : 'TIẾN HÀNH THANH TOÁN'}
-            </button>
+          <h3 className="font-bold text-gray-800 mb-3">Phương thức thanh toán</h3>
+          <div className="space-y-3 mb-6">
+            
+            {/* Lựa chọn được lấy động từ Cấu hình Backend */}
+            {sysSettings.enable_cod && (
+              <label className={`flex items-center p-3 border rounded-xl cursor-pointer ${paymentMethod === 'cod' ? 'border-primary bg-orange-50' : 'border-gray-200'}`}>
+                <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="mr-3 accent-primary" />
+                <Truck className="w-5 h-5 mr-2 text-primary" /><span className="font-medium">Tiền mặt (COD)</span>
+              </label>
+            )}
+
+            {sysSettings.enable_momo && (
+              <label className={`flex items-center p-3 border rounded-xl cursor-pointer ${paymentMethod === 'momo' ? 'border-pink-600 bg-pink-50' : 'border-gray-200'}`}>
+                <input type="radio" name="payment" value="momo" checked={paymentMethod === 'momo'} onChange={() => setPaymentMethod('momo')} className="mr-3 accent-pink-600" />
+                <CreditCard className="w-5 h-5 mr-2 text-pink-600" /><span className="font-bold text-pink-700">Ví MoMo</span>
+              </label>
+            )}
+
+            {sysSettings.enable_bank && (
+              <label className={`flex items-center p-3 border rounded-xl cursor-pointer ${paymentMethod === 'bank' ? 'border-blue-600 bg-blue-50' : 'border-gray-200'}`}>
+                <input type="radio" name="payment" value="bank" checked={paymentMethod === 'bank'} onChange={() => setPaymentMethod('bank')} className="mr-3 accent-blue-600" />
+                <QrCode className="w-5 h-5 mr-2 text-blue-600" /><span className="font-bold text-blue-700">Chuyển khoản (VietQR)</span>
+              </label>
+            )}
           </div>
-        </div>
+
+          <div className="border-t pt-4 mb-6 flex justify-between items-center"><span className="text-gray-600 font-medium">Tổng thanh toán:</span><span className="text-2xl font-extrabold text-primary">{totalAmount.toLocaleString('vi-VN')} đ</span></div>
+          <button type="submit" disabled={loading} className={`w-full py-3 rounded-xl font-bold text-white shadow-md ${paymentMethod === 'momo' ? 'bg-pink-600' : paymentMethod === 'bank' ? 'bg-blue-600' : 'bg-primary'}`}>
+            {loading ? 'Đang xử lý...' : 'Xác nhận Đặt hàng'}
+          </button>
+        </form>
       </div>
     </div>
   );
