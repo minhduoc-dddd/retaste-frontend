@@ -61,7 +61,7 @@ const MenuPage = ({ addToCart }) => {
     <div className="container mx-auto px-4">
       {/* Header Thực đơn */}
       <div className="text-center max-w-2xl mx-auto mb-8">
-        <span className="text-xs font-extrabold uppercase tracking-widest text-primary bg-orange-50 px-3.5 py-1.5 rounded-full">
+        <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600 bg-blue-50 px-3.5 py-1.5 rounded-full">
           Thực đơn tươi ngon mỗi ngày
         </span>
         <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 uppercase mt-3 mb-2">
@@ -88,7 +88,7 @@ const MenuPage = ({ addToCart }) => {
                   onClick={() => setActiveCategory(cat)}
                   className={`px-4 py-2.5 rounded-xl font-bold text-sm transition whitespace-nowrap flex items-center gap-2 ${
                     activeCategory === cat
-                      ? 'bg-primary text-white shadow-md shadow-orange-500/25'
+                      ? 'bg-primary text-white shadow-md shadow-blue-500/25'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
                   }`}
                 >
@@ -178,7 +178,7 @@ const MenuPage = ({ addToCart }) => {
                 setActiveCategory('Tất cả');
                 setSearchQuery('');
               }}
-              className="bg-primary text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-orange-600 transition"
+              className="bg-primary text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-blue-600 transition"
             >
               Xem tất cả thực đơn
             </button>
@@ -237,7 +237,7 @@ const MenuPage = ({ addToCart }) => {
                         img: item.image_url || FALLBACK_FOOD_IMG
                       })
                     }
-                    className="bg-orange-50 text-primary hover:bg-primary hover:text-white active:scale-95 px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1 transition shadow-sm"
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 active:scale-95 px-3.5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-1 transition shadow-sm"
                   >
                     <Plus className="w-4 h-4" /> Thêm
                   </button>

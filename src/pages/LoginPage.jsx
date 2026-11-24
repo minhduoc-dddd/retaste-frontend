@@ -89,8 +89,8 @@ const LoginPage = ({ setUser, showToast }) => {
     <div className="flex items-center justify-center min-h-[75vh] px-4 py-6">
       <div className="bg-white rounded-3xl shadow-soft border border-slate-200/80 w-full max-w-md overflow-hidden">
         {/* Top Accent Banner */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-orange-950 p-7 text-center text-white relative overflow-hidden">
-          <div className="w-14 h-14 bg-gradient-to-br from-primary to-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-orange-500/30">
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 p-7 text-center text-white relative overflow-hidden">
+          <div className="w-14 h-14 bg-gradient-to-br from-primary to-sky-500 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-500/30">
             <Flame className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-extrabold tracking-tight">
@@ -180,8 +180,8 @@ const LoginPage = ({ setUser, showToast }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full text-white font-extrabold py-3.5 rounded-xl transition shadow-lg shadow-orange-500/20 ${
-                isLoading ? 'bg-slate-400' : 'bg-primary hover:bg-orange-600 active:scale-[0.99]'
+              className={`w-full text-white font-extrabold py-3.5 rounded-xl transition shadow-lg shadow-blue-500/20 ${
+                isLoading ? 'bg-slate-400' : 'bg-primary hover:bg-blue-600 active:scale-[0.99]'
               }`}
             >
               {isLoading ? 'Đang xử lý...' : isLogin ? 'Đăng nhập ngay' : 'Hoàn tất Đăng ký'}
@@ -197,7 +197,7 @@ const LoginPage = ({ setUser, showToast }) => {
               <button
                 type="button"
                 onClick={() => handleQuickDemoLogin('admin')}
-                className="flex items-center justify-center gap-1.5 border border-orange-200 bg-orange-50/70 hover:bg-orange-100 text-orange-800 text-xs font-bold py-2.5 px-3 rounded-xl transition"
+                className="flex items-center justify-center gap-1.5 border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-800 text-xs font-bold py-2.5 px-3 rounded-xl transition"
               >
                 <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
                 <span>Demo Admin</span>

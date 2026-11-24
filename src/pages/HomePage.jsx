@@ -97,20 +97,20 @@ const HomePage = ({ addToCart, user }) => {
   return (
     <div className="container mx-auto px-4 space-y-12">
       {/* ================= HERO BANNER & THANH TÌM KIẾM ================= */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-orange-950 text-white p-8 md:p-14 shadow-xl border border-slate-800">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 md:p-14 shadow-xl border border-blue-900/50">
         {/* Decorative glowing circles */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-orange-500/20 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-amber-400/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-amber-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-blue-500/25 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-orange-500/20 border border-orange-400/30 text-orange-300 text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-full mb-5">
+          <div className="inline-flex items-center gap-2 bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-full mb-5">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Hệ thống gợi ý ẩm thực thông minh RETASTE</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
             Đặt Món Nhanh Chóng,{' '}
-            <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-yellow-200 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
               Gợi Ý Đúng Gu!
             </span>
           </h1>
@@ -130,7 +130,7 @@ const HomePage = ({ addToCart, user }) => {
                 if (selectedQuickTag) setSelectedQuickTag('');
               }}
               placeholder="Tìm món ngon bạn thèm hôm nay (VD: Phở bò, Bún đậu, Trà đào, Combo)..."
-              className="w-full pl-13 pr-12 py-4 rounded-2xl bg-white text-slate-800 placeholder-slate-400 font-medium shadow-lg focus:outline-none focus:ring-4 focus:ring-orange-500/40 transition text-sm md:text-base"
+              className="w-full pl-13 pr-12 py-4 rounded-2xl bg-white text-slate-800 placeholder-slate-400 font-medium shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-500/40 transition text-sm md:text-base"
               style={{ paddingLeft: '3.25rem' }}
             />
             {(searchTerm || selectedQuickTag) && (
@@ -180,7 +180,7 @@ const HomePage = ({ addToCart, user }) => {
       {/* ================= TIỆN ÍCH NỔI BẬT ================= */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-soft flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-primary flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-primary flex items-center justify-center shrink-0">
             <Sparkles className="w-6 h-6" />
           </div>
           <div>
@@ -231,7 +231,7 @@ const HomePage = ({ addToCart, user }) => {
 
           <Link
             to="/menu"
-            className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-4 py-2.5 rounded-xl transition w-fit"
+            className="inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition w-fit"
           >
             <span>Xem toàn bộ thực đơn</span>
             <ChevronRight className="w-4 h-4" />
@@ -240,8 +240,8 @@ const HomePage = ({ addToCart, user }) => {
 
         {/* Thanh AI Insight theo khung giờ & lịch sử ăn uống */}
         {!isSearching && aiInsight && (
-          <div className="mb-6 bg-gradient-to-r from-orange-50 via-amber-50/70 to-white border border-orange-200/80 rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <div className="mb-6 bg-gradient-to-r from-blue-50 via-sky-50/70 to-white border border-blue-200/80 rounded-2xl p-4 flex items-center gap-3.5 shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-sky-500 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
@@ -301,7 +301,7 @@ const HomePage = ({ addToCart, user }) => {
                 setSearchTerm('');
                 setSelectedQuickTag('');
               }}
-              className="mt-2 bg-primary text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-orange-600 transition"
+              className="mt-2 bg-primary text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-blue-600 transition"
             >
               Xóa bộ lọc tìm kiếm
             </button>
@@ -331,8 +331,8 @@ const HomePage = ({ addToCart, user }) => {
                       {item.category || 'Đồ ăn'}
                     </span>
                     {item.best_seller && (
-                      <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-extrabold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
-                        <Star className="w-3 h-3 fill-white" /> Best Seller
+                      <span className="bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 text-xs font-extrabold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
+                        <Star className="w-3 h-3 fill-slate-950" /> Best Seller
                       </span>
                     )}
                   </div>
@@ -365,7 +365,7 @@ const HomePage = ({ addToCart, user }) => {
                           img: item.image_url || FALLBACK_FOOD_IMG
                         })
                       }
-                      className="bg-primary hover:bg-orange-600 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 transition shadow-md shadow-orange-500/20 text-sm"
+                      className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 px-4 py-2.5 rounded-xl font-extrabold flex items-center gap-1.5 transition shadow-md shadow-amber-500/25 text-sm"
                     >
                       <Plus className="w-4 h-4" /> Thêm vào giỏ
                     </button>

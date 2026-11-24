@@ -115,9 +115,9 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
       {isOpen && (
         <div className="mb-3 w-[350px] sm:w-[400px] max-h-[560px] bg-white rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-toast">
           {/* Header */}
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-orange-950 text-white px-5 py-4 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center shadow-md shadow-orange-500/30">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-sky-500 flex items-center justify-center shadow-md shadow-blue-500/30">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -151,7 +151,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
               >
                 <div className="flex items-start gap-2 max-w-[90%]">
                   {msg.sender === 'ai' && (
-                    <div className="w-7 h-7 rounded-xl bg-orange-100 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-7 h-7 rounded-xl bg-blue-100 text-primary flex items-center justify-center shrink-0 mt-0.5">
                       <Sparkles className="w-3.5 h-3.5" />
                     </div>
                   )}
@@ -174,7 +174,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
                       {msg.suggestedProducts.map((item) => (
                         <div
                           key={item._id}
-                          className="bg-white p-2.5 rounded-2xl border border-orange-100 shadow-sm flex items-center justify-between gap-2.5 hover:border-orange-300 transition"
+                          className="bg-white p-2.5 rounded-2xl border border-blue-100 shadow-sm flex items-center justify-between gap-2.5 hover:border-blue-300 transition"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <img
@@ -209,7 +209,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
                                 img: item.image_url || FALLBACK_FOOD_IMG,
                               })
                             }
-                            className="bg-orange-50 hover:bg-primary text-primary hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition"
+                            className="bg-blue-50 hover:bg-primary text-primary hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 transition"
                           >
                             <Plus className="w-3.5 h-3.5" /> Thêm
                           </button>
@@ -220,7 +220,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
                         <button
                           type="button"
                           onClick={() => handleAddComboToCart(msg.suggestedProducts)}
-                          className="w-full py-2 px-3 bg-gradient-to-r from-primary to-orange-500 hover:from-orange-600 hover:to-orange-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition"
+                          className="w-full py-2 px-3 bg-gradient-to-r from-primary to-blue-500 hover:from-blue-600 hover:to-blue-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition"
                         >
                           <ShoppingCart className="w-3.5 h-3.5" />
                           <span>
@@ -239,7 +239,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
 
             {isTyping && (
               <div className="flex items-center gap-2 text-xs text-slate-400 pl-2">
-                <div className="w-6 h-6 rounded-xl bg-orange-100 text-primary flex items-center justify-center">
+                <div className="w-6 h-6 rounded-xl bg-blue-100 text-primary flex items-center justify-center">
                   <Sparkles className="w-3.5 h-3.5 animate-spin" />
                 </div>
                 <span>RETASTE AI đang chọn món phù hợp cho bạn...</span>
@@ -255,7 +255,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
                 key={q}
                 type="button"
                 onClick={() => sendMessage(q)}
-                className="text-[11px] font-semibold bg-orange-50/80 hover:bg-orange-100 text-slate-700 px-2.5 py-1 rounded-full whitespace-nowrap border border-orange-200/60 transition"
+                className="text-[11px] font-semibold bg-blue-50/80 hover:bg-blue-100 text-slate-700 px-2.5 py-1 rounded-full whitespace-nowrap border border-blue-200/60 transition"
               >
                 {q}
               </button>
@@ -280,7 +280,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
             <button
               type="submit"
               disabled={!input.trim() || isTyping}
-              className="p-2.5 rounded-xl bg-primary hover:bg-orange-600 disabled:bg-slate-300 text-white transition shadow-sm"
+              className="p-2.5 rounded-xl bg-primary hover:bg-blue-600 disabled:bg-slate-300 text-white transition shadow-sm"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -291,7 +291,7 @@ const AIChatbot = ({ addToCart, user, isAdmin, isStaff }) => {
       {/* Nút Mở/Đóng Chatbot */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center gap-2.5 bg-gradient-to-r from-primary to-orange-500 hover:from-orange-600 hover:to-amber-500 text-white px-4 py-3.5 rounded-full shadow-glow transition transform hover:scale-105 active:scale-95"
+        className="group flex items-center gap-2.5 bg-gradient-to-r from-blue-800 via-blue-700 to-amber-500 hover:from-blue-900 hover:to-amber-600 text-white px-4 py-3.5 rounded-full shadow-glow transition transform hover:scale-105 active:scale-95"
       >
         <div className="relative">
           <MessageSquareHeart className="w-6 h-6" />

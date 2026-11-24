@@ -250,7 +250,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
               </div>
             </div>
           ) : (
-            <p className="text-slate-600 text-sm mb-6 bg-orange-50/70 py-3 px-4 rounded-xl border border-orange-100">
+            <p className="text-slate-600 text-sm mb-6 bg-blue-50/70 py-3 px-4 rounded-xl border border-blue-100">
               Nhà bếp RETASTE đã nhận được yêu cầu và đang chuẩn bị món ăn nóng hổi cho bạn!
             </p>
           )}
@@ -259,7 +259,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
             <Link
               to="/menu"
               onClick={() => setPaymentSuccess(false)}
-              className="inline-flex items-center justify-center bg-primary hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-orange-500/20 transition"
+              className="inline-flex items-center justify-center bg-primary hover:bg-blue-600 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-blue-500/20 transition"
             >
               Tiếp tục chọn món
             </Link>
@@ -289,7 +289,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
         </div>
         <Link
           to="/menu"
-          className="inline-flex items-center text-sm font-bold text-primary hover:text-orange-700 gap-1.5"
+          className="inline-flex items-center text-sm font-bold text-primary hover:text-blue-700 gap-1.5"
         >
           <ArrowLeft className="w-4 h-4" /> Chọn thêm món khác
         </Link>
@@ -297,7 +297,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
 
       {cart.length === 0 ? (
         <div className="bg-white rounded-3xl shadow-soft border border-slate-200/70 py-16 px-6 text-center max-w-lg mx-auto">
-          <div className="w-20 h-20 bg-orange-50 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-blue-50 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
             <ShoppingBag className="w-10 h-10" />
           </div>
           <h2 className="text-2xl font-extrabold text-slate-800 mb-2">
@@ -308,7 +308,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
           </p>
           <Link
             to="/menu"
-            className="inline-flex items-center gap-2 bg-primary hover:bg-orange-600 text-white font-bold px-7 py-3.5 rounded-2xl shadow-md shadow-orange-500/25 transition"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-blue-600 text-white font-bold px-7 py-3.5 rounded-2xl shadow-md shadow-blue-500/25 transition"
           >
             Xem thực đơn ngay
           </Link>
@@ -477,7 +477,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
                 <label
                   className={`flex items-center p-3.5 border rounded-2xl cursor-pointer transition ${
                     paymentMethod === 'cod'
-                      ? 'border-primary bg-orange-50/70 shadow-sm'
+                      ? 'border-primary bg-blue-50/70 shadow-sm'
                       : 'border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -575,7 +575,7 @@ const CartPage = ({ cart, updateQuantity, removeItem, clearCart, user, showToast
                   ? 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/25'
                   : paymentMethod === 'bank'
                   ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/25'
-                  : 'bg-primary hover:bg-orange-600 shadow-orange-500/25'
+                  : 'bg-primary hover:bg-blue-600 shadow-blue-500/25'
               }`}
             >
               {loading ? 'Đang xử lý đơn hàng...' : 'Xác nhận Đặt hàng'}

@@ -26,7 +26,10 @@ import {
   Phone,
   Sparkles,
   Bot,
-  KeyRound
+  KeyRound,
+  Download,
+  Printer,
+  Filter
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -50,6 +53,13 @@ const AdminPage = ({ user, showToast }) => {
 
   // Bộ lọc đơn hàng
   const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+
+  // Bộ lọc Quản lý Doanh thu (Lọc doanh thu theo thời gian, phương thức & từ khóa)
+  const [revTimePreset, setRevTimePreset] = useState('all');
+  const [revDateFrom, setRevDateFrom] = useState('');
+  const [revDateTo, setRevDateTo] = useState('');
+  const [revPaymentFilter, setRevPaymentFilter] = useState('all');
+  const [revSearch, setRevSearch] = useState('');
 
   // Form Thêm / Sửa sản phẩm
   const [showProductForm, setShowProductForm] = useState(false);
@@ -353,19 +363,280 @@ const AdminPage = ({ user, showToast }) => {
     }
   };
 
-  // ================= TÍNH TOÁN THỐNG KÊ =================
+  // ================= TÍNH TOÁN THỐNG KÊ & LỌC DOANH THU =================
   const pendingOrdersCount = orders.filter((o) => o.status === 'cho_duyet').length;
   const completedOrders = orders.filter((o) => o.status === 'hoan_tat');
   const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const revenueCOD = completedOrders
+
+  const filteredRevenueOrders = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(startOfToday);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    return completedOrders.filter((o) => {
+      const ordDate = o.createdAt ? new Date(o.createdAt) : new Date();
+
+      if (revTimePreset === 'today' && ordDate < startOfToday) return false;
+      if (revTimePreset === '7days' && ordDate < sevenDaysAgo) return false;
+      if (revTimePreset === 'month' && ordDate < startOfMonth) return false;
+
+      if (revDateFrom) {
+        const from = new Date(`${revDateFrom}T00:00:00`);
+        if (ordDate < from) return false;
+      }
+      if (revDateTo) {
+        const to = new Date(`${revDateTo}T23:59:59`);
+        if (ordDate > to) return false;
+      }
+
+      const method = o.payment_method || 'cod';
+      if (revPaymentFilter !== 'all' && method !== revPaymentFilter) return false;
+
+      const q = revSearch.trim().toLowerCase();
+      if (q) {
+        const matchName = (o.customer_info?.name || '').toLowerCase().includes(q);
+        const matchPhone = (o.customer_info?.phone || '').toLowerCase().includes(q);
+        const matchDish = (o.items || []).some((it) =>
+          (it.product_name || '').toLowerCase().includes(q)
+        );
+        if (!matchName && !matchPhone && !matchDish) return false;
+      }
+      return true;
+    });
+  }, [completedOrders, revTimePreset, revDateFrom, revDateTo, revPaymentFilter, revSearch]);
+
+  const filteredTotalRevenue = filteredRevenueOrders.reduce(
+    (sum, o) => sum + (o.total_amount || 0),
+    0
+  );
+  const revenueCOD = filteredRevenueOrders
     .filter((o) => o.payment_method === 'cod' || !o.payment_method)
     .reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const revenueBank = completedOrders
+  const revenueBank = filteredRevenueOrders
     .filter((o) => o.payment_method === 'bank')
     .reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  const revenueMoMo = completedOrders
+  const revenueMoMo = filteredRevenueOrders
     .filter((o) => o.payment_method === 'momo')
     .reduce((sum, o) => sum + (o.total_amount || 0), 0);
+
+  // Thống kê doanh thu theo ngày để hiển thị biểu đồ cột
+  const dailyRevenueStats = useMemo(() => {
+    const map = {};
+    filteredRevenueOrders.forEach((o) => {
+      const d = o.createdAt ? new Date(o.createdAt) : new Date();
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+        d.getDate()
+      ).padStart(2, '0')}`;
+      if (!map[key]) map[key] = { date: key, total: 0, count: 0 };
+      map[key].total += Number(o.total_amount || 0);
+      map[key].count += 1;
+    });
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).slice(-7);
+  }, [filteredRevenueOrders]);
+
+  const resetRevenueFilters = () => {
+    setRevTimePreset('all');
+    setRevDateFrom('');
+    setRevDateTo('');
+    setRevPaymentFilter('all');
+    setRevSearch('');
+  };
+
+  // Xuất báo cáo doanh thu ra file Excel (.csv chuẩn UTF-8 BOM + sep=, chia rõ từng khoản)
+  const handleExportRevenueCSV = () => {
+    if (filteredRevenueOrders.length === 0) {
+      showToast?.('Không có dữ liệu đơn hoàn tất nào khớp bộ lọc để xuất báo cáo!', 'error');
+      return;
+    }
+
+    const cleanCell = (val) =>
+      `"${String(val ?? '')
+        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/"/g, '""')
+        .trim()}"`;
+    const toCsvRow = (cols) => cols.map(cleanCell).join(',');
+
+    const countCOD = filteredRevenueOrders.filter(
+      (o) => o.payment_method === 'cod' || !o.payment_method
+    ).length;
+    const countBank = filteredRevenueOrders.filter((o) => o.payment_method === 'bank').length;
+    const countMoMo = filteredRevenueOrders.filter((o) => o.payment_method === 'momo').length;
+
+    const pct = (part) =>
+      filteredTotalRevenue > 0 ? `${((part / filteredTotalRevenue) * 100).toFixed(1)}%` : '0%';
+
+    // Tổng hợp chi tiết theo từng món ăn
+    const dishMap = {};
+    filteredRevenueOrders.forEach((o) => {
+      (o.items || []).forEach((it) => {
+        const name = (it.product_name || 'Món ăn').replace(/[\r\n\t]+/g, ' ').trim();
+        const qty = Number(it.quantity || 1);
+        const amount = Number(it.price || 0) * qty;
+        if (!dishMap[name]) dishMap[name] = { name, qty: 0, amount: 0 };
+        dishMap[name].qty += qty;
+        dishMap[name].amount += amount;
+      });
+    });
+    const dishList = Object.values(dishMap).sort((a, b) => b.amount - a.amount);
+    const totalDishQty = dishList.reduce((s, d) => s + d.qty, 0);
+    const totalDishAmount = dishList.reduce((s, d) => s + d.amount, 0);
+
+    const timeFilterLabel =
+      revDateFrom || revDateTo
+        ? `${revDateFrom || '...'} đến ${revDateTo || '...'}`
+        : revTimePreset === 'today'
+        ? 'Hôm nay'
+        : revTimePreset === '7days'
+        ? '7 ngày qua'
+        : revTimePreset === 'month'
+        ? 'Tháng này'
+        : 'Tất cả thời gian';
+
+    const paymentFilterLabel =
+      revPaymentFilter === 'all'
+        ? 'Tất cả phương thức'
+        : revPaymentFilter === 'bank'
+        ? 'Chuyển khoản (VietQR)'
+        : revPaymentFilter === 'momo'
+        ? 'Ví MoMo'
+        : 'Tiền mặt (COD)';
+
+    const lines = [
+      'sep=,',
+      toCsvRow(['BÁO CÁO DOANH THU NHÀ HÀNG RETASTE']),
+      toCsvRow([
+        'Ngày xuất',
+        new Date().toLocaleString('vi-VN'),
+        'Thời gian lọc',
+        timeFilterLabel,
+        'Kênh thanh toán',
+        paymentFilterLabel,
+      ]),
+      '',
+      toCsvRow(['I. TỔNG HỢP DOANH THU THEO TỪNG KHOẢN']),
+      toCsvRow(['Khoản thu / Kênh thanh toán', 'Số đơn hàng', 'Doanh thu (VNĐ)', 'Tỷ trọng (%)']),
+      toCsvRow(['Tiền mặt (COD)', countCOD, revenueCOD, pct(revenueCOD)]),
+      toCsvRow(['Chuyển khoản (VietQR)', countBank, revenueBank, pct(revenueBank)]),
+      toCsvRow(['Ví điện tử (MoMo)', countMoMo, revenueMoMo, pct(revenueMoMo)]),
+      toCsvRow([
+        'TỔNG CỘNG DOANH THU',
+        filteredRevenueOrders.length,
+        filteredTotalRevenue,
+        filteredTotalRevenue > 0 ? '100%' : '0%',
+      ]),
+      '',
+      toCsvRow(['II. BẢNG THỐNG KÊ DOANH THU THEO TỪNG MÓN ĂN']),
+      toCsvRow(['STT', 'Tên món ăn', 'Số lượng bán', 'Thành tiền (VNĐ)']),
+      ...dishList.map((d, idx) => toCsvRow([idx + 1, d.name, d.qty, d.amount])),
+      toCsvRow(['', 'TỔNG CỘNG THEO MÓN', totalDishQty, totalDishAmount]),
+      '',
+      toCsvRow(['III. BẢNG KÊ CHI TIẾT TỪNG ĐƠN HÀNG']),
+      toCsvRow([
+        'STT',
+        'Mã đơn',
+        'Ngày giờ',
+        'Khách hàng',
+        'Số điện thoại',
+        'Chi tiết món đặt',
+        'Phương thức thanh toán',
+        'Tổng tiền (VNĐ)',
+      ]),
+      ...filteredRevenueOrders.map((o, idx) => {
+        const itemsText = (o.items || [])
+          .map((it) => `${it.product_name} (x${it.quantity})`)
+          .join('; ');
+        const methodLabel =
+          o.payment_method === 'bank'
+            ? 'Chuyển khoản VietQR'
+            : o.payment_method === 'momo'
+            ? 'Ví MoMo'
+            : 'Tiền mặt (COD)';
+        const dateText = o.createdAt ? new Date(o.createdAt).toLocaleString('vi-VN') : '';
+        return toCsvRow([
+          idx + 1,
+          `#${String(o._id).slice(-6).toUpperCase()}`,
+          dateText,
+          o.customer_info?.name || 'Khách vãng lai',
+          o.customer_info?.phone || '',
+          itemsText,
+          methodLabel,
+          Number(o.total_amount || 0),
+        ]);
+      }),
+      toCsvRow([
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        'TỔNG CỘNG DOANH THU (VNĐ)',
+        filteredTotalRevenue,
+      ]),
+    ];
+
+    const csvContent = '\uFEFF' + lines.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Bao_Cao_Doanh_Thu_RETASTE_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast?.('Đã xuất file Báo cáo Doanh thu Excel (.CSV) thành công!', 'success');
+  };
+
+  // In / Xuất PDF báo cáo doanh thu
+  const handlePrintRevenueReport = () => {
+    const printWin = window.open('', '_blank', 'width=900,height=700');
+    if (!printWin) {
+      showToast?.('Trình duyệt đã chặn cửa sổ in, vui lòng cho phép popup!', 'error');
+      return;
+    }
+    const rowsHtml = filteredRevenueOrders
+      .map(
+        (o, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>#${String(o._id).slice(-6).toUpperCase()}</td>
+        <td>${o.createdAt ? new Date(o.createdAt).toLocaleString('vi-VN') : ''}</td>
+        <td>${o.customer_info?.name || 'Khách'}<br/><small>${o.customer_info?.phone || ''}</small></td>
+        <td>${(o.items || []).map((i) => `${i.product_name} (x${i.quantity})`).join(', ')}</td>
+        <td>${o.payment_method === 'bank' ? 'VietQR' : o.payment_method === 'momo' ? 'MoMo' : 'COD'}</td>
+        <td style="text-align:right;font-weight:bold;">${Number(o.total_amount || 0).toLocaleString('vi-VN')} đ</td>
+      </tr>`
+      )
+      .join('');
+
+    printWin.document.write(`
+      <div style="font-family: Arial, sans-serif; padding: 28px; color: #0f172a;">
+        <h1 style="color: #1E40AF; margin-bottom: 4px;">BÁO CÁO DOANH THU NHÀ HÀNG RETASTE</h1>
+        <div style="font-size: 13px; color: #475569; margin-bottom: 18px;">
+          Ngày xuất: ${new Date().toLocaleString('vi-VN')} |
+          Bộ lọc thời gian: ${revDateFrom || revDateTo ? `${revDateFrom || '...'} đến ${revDateTo || '...'}` : revTimePreset} |
+          Thanh toán: ${revPaymentFilter === 'all' ? 'Tất cả' : revPaymentFilter.toUpperCase()}
+        </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+          <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px;"><small style="color: #64748b; text-transform: uppercase; font-size: 11px; font-weight: bold;">Tổng Doanh thu</small><strong style="display: block; font-size: 18px; margin-top: 4px; color: #1E40AF;">${filteredTotalRevenue.toLocaleString('vi-VN')} đ</strong></div>
+          <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px;"><small style="color: #64748b; text-transform: uppercase; font-size: 11px; font-weight: bold;">Tiền mặt (COD)</small><strong style="display: block; font-size: 18px; margin-top: 4px; color: #1E40AF;">${revenueCOD.toLocaleString('vi-VN')} đ</strong></div>
+          <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px;"><small style="color: #64748b; text-transform: uppercase; font-size: 11px; font-weight: bold;">VietQR</small><strong style="display: block; font-size: 18px; margin-top: 4px; color: #1E40AF;">${revenueBank.toLocaleString('vi-VN')} đ</strong></div>
+          <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px;"><small style="color: #64748b; text-transform: uppercase; font-size: 11px; font-weight: bold;">Ví MoMo</small><strong style="display: block; font-size: 18px; margin-top: 4px; color: #1E40AF;">${revenueMoMo.toLocaleString('vi-VN')} đ</strong></div>
+        </div>
+        <table border="1" cellpadding="8" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 12px; border-color: #cbd5e1;">
+          <thead style="background: #f1f5f9;">
+            <tr><th>STT</th><th>Mã đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Chi tiết món</th><th>Thanh toán</th><th>Thành tiền</th></tr>
+          </thead>
+          <tbody>${rowsHtml || '<tr><td colspan="7" style="text-align:center;">Không có đơn hàng nào khớp bộ lọc.</td></tr>'}</tbody>
+        </table>
+      </div>
+    `);
+    printWin.document.close();
+    setTimeout(() => printWin.print(), 250);
+  };
 
   const filteredOrders = useMemo(() => {
     if (orderStatusFilter === 'all') return orders;
@@ -411,9 +682,9 @@ const AdminPage = ({ user, showToast }) => {
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-soft flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase">Đơn chờ duyệt</p>
-            <p className="text-2xl font-extrabold text-amber-600 mt-0.5">{pendingOrdersCount} đơn</p>
+            <p className="text-2xl font-extrabold text-sky-600 mt-0.5">{pendingOrdersCount} đơn</p>
           </div>
-          <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <div className="w-11 h-11 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center">
             <Clock className="w-5 h-5" />
           </div>
         </div>
@@ -433,7 +704,7 @@ const AdminPage = ({ user, showToast }) => {
             <p className="text-xs font-bold text-slate-400 uppercase">Món trong Menu</p>
             <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{products.length} món</p>
           </div>
-          <div className="w-11 h-11 rounded-2xl bg-orange-50 text-primary flex items-center justify-center">
+          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-primary flex items-center justify-center">
             <Package className="w-5 h-5" />
           </div>
         </div>
@@ -462,7 +733,7 @@ const AdminPage = ({ user, showToast }) => {
             <button
               onClick={refreshAll}
               title="Làm mới dữ liệu"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-orange-50 transition"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-blue-50 transition"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -478,7 +749,7 @@ const AdminPage = ({ user, showToast }) => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full text-left flex items-center justify-between px-4 py-3 rounded-2xl text-sm transition ${
                     active
-                      ? 'bg-primary text-white font-extrabold shadow-md shadow-orange-500/25'
+                      ? 'bg-primary text-white font-extrabold shadow-md shadow-blue-500/25'
                       : 'text-slate-600 font-semibold hover:bg-slate-100/80'
                   }`}
                 >
@@ -489,7 +760,7 @@ const AdminPage = ({ user, showToast }) => {
                   {tab.badge !== undefined && tab.badge > 0 && (
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-extrabold ${
-                        active ? 'bg-white text-primary' : 'bg-orange-100 text-primary'
+                        active ? 'bg-white text-primary' : 'bg-blue-100 text-primary'
                       }`}
                     >
                       {tab.badge}
@@ -606,7 +877,7 @@ const AdminPage = ({ user, showToast }) => {
                                 <Smartphone className="w-3.5 h-3.5" /> Ví MoMo
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-lg font-bold text-xs">
+                              <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg font-bold text-xs">
                                 <Banknote className="w-3.5 h-3.5" /> Tiền mặt (COD)
                               </span>
                             )}
@@ -623,7 +894,7 @@ const AdminPage = ({ user, showToast }) => {
                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : order.status === 'da_huy'
                                   ? 'bg-red-50 text-red-700 border-red-200'
-                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-sky-50 text-sky-700 border-sky-200'
                               }`}
                             >
                               <option value="cho_duyet">⏳ Chờ duyệt</option>
@@ -655,7 +926,7 @@ const AdminPage = ({ user, showToast }) => {
                 </div>
                 <button
                   onClick={() => (showProductForm ? setShowProductForm(false) : openAddProductForm())}
-                  className="bg-primary hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-1.5 shadow-md shadow-orange-500/20 w-fit"
+                  className="bg-primary hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-1.5 shadow-md shadow-blue-500/20 w-fit"
                 >
                   {showProductForm ? (
                     <>
@@ -752,7 +1023,7 @@ const AdminPage = ({ user, showToast }) => {
                         type="button"
                         onClick={handleGenerateDescriptionAI}
                         disabled={isGeneratingDesc}
-                        className="inline-flex items-center gap-1.5 text-xs font-extrabold bg-gradient-to-r from-primary to-amber-500 text-white px-3 py-1 rounded-full shadow-sm hover:opacity-95 disabled:opacity-50 transition"
+                        className="inline-flex items-center gap-1.5 text-xs font-extrabold bg-gradient-to-r from-primary to-sky-500 text-white px-3 py-1 rounded-full shadow-sm hover:opacity-95 disabled:opacity-50 transition"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>{isGeneratingDesc ? 'AI đang viết...' : 'AI Tự viết mô tả'}</span>
@@ -794,7 +1065,7 @@ const AdminPage = ({ user, showToast }) => {
                       </button>
                       <button
                         type="submit"
-                        className="bg-primary hover:bg-orange-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow"
+                        className="bg-primary hover:bg-blue-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow"
                       >
                         {editingProductId ? 'Lưu cập nhật' : 'Lưu món ăn'}
                       </button>
@@ -848,13 +1119,13 @@ const AdminPage = ({ user, showToast }) => {
                             title="Bật/Tắt Best Seller"
                             className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full transition ${
                               item.best_seller
-                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                ? 'bg-sky-100 text-sky-800 border border-sky-300'
                                 : 'bg-slate-100 text-slate-400 hover:text-slate-600'
                             }`}
                           >
                             <Star
                               className={`w-3.5 h-3.5 ${
-                                item.best_seller ? 'fill-amber-500 text-amber-500' : ''
+                                item.best_seller ? 'fill-sky-500 text-sky-500' : ''
                               }`}
                             />
                             <span>{item.best_seller ? 'Best Seller' : 'Thường'}</span>
@@ -899,7 +1170,7 @@ const AdminPage = ({ user, showToast }) => {
                   </p>
                 </div>
 
-                <div className="bg-orange-50/80 p-3.5 rounded-2xl border border-orange-200/70 flex items-center gap-4">
+                <div className="bg-blue-50/80 p-3.5 rounded-2xl border border-blue-200/70 flex items-center gap-4">
                   <span className="text-xs font-semibold text-slate-700">
                     Ca ngày: <strong className="text-primary font-extrabold">{todayStr}</strong>
                   </span>
@@ -1042,7 +1313,7 @@ const AdminPage = ({ user, showToast }) => {
                               ) : (
                                 <button
                                   onClick={() => startEditAttendance(att)}
-                                  className="p-1.5 text-slate-400 hover:text-primary hover:bg-orange-50 rounded-lg transition"
+                                  className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition"
                                 >
                                   <Edit className="w-4 h-4" />
                                 </button>
@@ -1065,59 +1336,194 @@ const AdminPage = ({ user, showToast }) => {
             </div>
           )}
 
-          {/* ================= TAB 4: THỐNG KÊ DOANH THU ================= */}
+          {/* ================= TAB 4: QUẢN LÝ & THỐNG KÊ DOANH THU ================= */}
           {activeTab === 'revenue' && isAdmin && (
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-800 mb-1">
-                Thống kê Doanh thu & Dòng tiền
-              </h2>
-              <p className="text-xs text-slate-500 mb-6">
-                Tổng hợp doanh thu thực tế từ các đơn hàng đã Hoàn tất ({completedOrders.length} đơn)
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-5 rounded-3xl shadow-md">
-                  <div className="flex justify-between items-center mb-2">
-                    <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-100">
-                      Tổng Doanh thu
-                    </p>
-                    <BarChart3 className="text-white/80 w-5 h-5" />
-                  </div>
-                  <p className="text-2xl md:text-3xl font-extrabold">
-                    {totalRevenue.toLocaleString('vi-VN')} đ
-                  </p>
-                  <p className="text-xs text-emerald-100 mt-2">
-                    {completedOrders.length} đơn hoàn tất
+              {/* Tiêu đề & Nút Xuất báo cáo doanh thu */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-2xl font-extrabold text-slate-800">
+                    Quản lý & Thống kê Doanh thu
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Lọc doanh thu theo thời gian/kênh thanh toán, thống kê trực quan và xuất báo cáo Excel/PDF
                   </p>
                 </div>
 
-                <div className="bg-orange-50/80 border border-orange-200/80 p-5 rounded-3xl">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleExportRevenueCSV}
+                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-sm transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Xuất Excel (.CSV)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrintRevenueReport}
+                    className="inline-flex items-center gap-1.5 bg-blue-800 hover:bg-blue-900 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-sm transition"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>In / Xuất PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Thanh Lọc doanh thu (Use Case: Lọc doanh thu) */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-4 md:p-5 mb-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-blue-800">
+                    <Filter className="w-4 h-4" />
+                    <span>Bộ lọc doanh thu</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'all', label: 'Tất cả thời gian' },
+                      { id: 'today', label: 'Hôm nay' },
+                      { id: '7days', label: '7 ngày qua' },
+                      { id: 'month', label: 'Tháng này' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setRevTimePreset(preset.id);
+                          setRevDateFrom('');
+                          setRevDateTo('');
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                          revTimePreset === preset.id && !revDateFrom && !revDateTo
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-blue-50'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                      Từ ngày
+                    </label>
+                    <input
+                      type="date"
+                      value={revDateFrom}
+                      onChange={(e) => {
+                        setRevDateFrom(e.target.value);
+                        setRevTimePreset('custom');
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                      Đến ngày
+                    </label>
+                    <input
+                      type="date"
+                      value={revDateTo}
+                      onChange={(e) => {
+                        setRevDateTo(e.target.value);
+                        setRevTimePreset('custom');
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                      Kênh thanh toán
+                    </label>
+                    <select
+                      value={revPaymentFilter}
+                      onChange={(e) => setRevPaymentFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl"
+                    >
+                      <option value="all">Tất cả phương thức</option>
+                      <option value="cod">Tiền mặt (COD)</option>
+                      <option value="bank">Chuyển khoản (VietQR)</option>
+                      <option value="momo">Ví MoMo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                      Tìm khách / món
+                    </label>
+                    <input
+                      type="text"
+                      value={revSearch}
+                      onChange={(e) => setRevSearch(e.target.value)}
+                      placeholder="Tên khách, SĐT, món..."
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={resetRevenueFilters}
+                      className="w-full py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition"
+                    >
+                      Đặt lại bộ lọc
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Thẻ Thống kê doanh thu theo bộ lọc */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+                <div className="bg-gradient-to-br from-blue-800 to-blue-950 text-white p-5 rounded-3xl shadow-md">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-xs font-extrabold text-orange-700 uppercase">
+                    <p className="text-xs font-extrabold uppercase tracking-wider text-amber-300">
+                      Doanh thu đã lọc
+                    </p>
+                    <BarChart3 className="text-amber-300 w-5 h-5" />
+                  </div>
+                  <p className="text-2xl md:text-3xl font-extrabold">
+                    {filteredTotalRevenue.toLocaleString('vi-VN')} đ
+                  </p>
+                  <p className="text-xs text-blue-200 mt-2">
+                    {filteredRevenueOrders.length} đơn hoàn tất khớp lọc
+                  </p>
+                </div>
+
+                <div className="bg-amber-50/70 border border-amber-200/80 p-5 rounded-3xl">
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-xs font-extrabold text-amber-800 uppercase">
                       Tiền mặt (COD)
                     </p>
-                    <Banknote className="text-orange-500 w-5 h-5" />
+                    <Banknote className="text-amber-600 w-5 h-5" />
                   </div>
-                  <p className="text-2xl font-extrabold text-orange-900">
+                  <p className="text-2xl font-extrabold text-amber-950">
                     {revenueCOD.toLocaleString('vi-VN')} đ
                   </p>
-                  <p className="text-xs text-orange-600 mt-2">
-                    Chiếm {totalRevenue > 0 ? Math.round((revenueCOD / totalRevenue) * 100) : 0}% tổng thu
+                  <p className="text-xs text-amber-700 mt-2">
+                    Chiếm{' '}
+                    {filteredTotalRevenue > 0
+                      ? Math.round((revenueCOD / filteredTotalRevenue) * 100)
+                      : 0}
+                    % tổng thu
                   </p>
                 </div>
 
                 <div className="bg-blue-50/80 border border-blue-200/80 p-5 rounded-3xl">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-xs font-extrabold text-blue-700 uppercase">
+                    <p className="text-xs font-extrabold text-blue-800 uppercase">
                       Chuyển khoản VietQR
                     </p>
-                    <QrCode className="text-blue-500 w-5 h-5" />
+                    <QrCode className="text-blue-600 w-5 h-5" />
                   </div>
-                  <p className="text-2xl font-extrabold text-blue-900">
+                  <p className="text-2xl font-extrabold text-blue-950">
                     {revenueBank.toLocaleString('vi-VN')} đ
                   </p>
-                  <p className="text-xs text-blue-600 mt-2">
-                    Chiếm {totalRevenue > 0 ? Math.round((revenueBank / totalRevenue) * 100) : 0}% tổng thu
+                  <p className="text-xs text-blue-700 mt-2">
+                    Chiếm{' '}
+                    {filteredTotalRevenue > 0
+                      ? Math.round((revenueBank / filteredTotalRevenue) * 100)
+                      : 0}
+                    % tổng thu
                   </p>
                 </div>
 
@@ -1130,40 +1536,118 @@ const AdminPage = ({ user, showToast }) => {
                     {revenueMoMo.toLocaleString('vi-VN')} đ
                   </p>
                   <p className="text-xs text-pink-600 mt-2">
-                    Chiếm {totalRevenue > 0 ? Math.round((revenueMoMo / totalRevenue) * 100) : 0}% tổng thu
+                    Chiếm{' '}
+                    {filteredTotalRevenue > 0
+                      ? Math.round((revenueMoMo / filteredTotalRevenue) * 100)
+                      : 0}
+                    % tổng thu
                   </p>
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200/80 p-6 rounded-3xl grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase">Đơn hàng đã hoàn tất</p>
-                  <p className="text-2xl font-extrabold text-slate-800 mt-1">
-                    {completedOrders.length} / {orders.length} đơn
-                  </p>
+              {/* Biểu đồ cột Thống kê doanh thu theo ngày */}
+              {dailyRevenueStats.length > 0 && (
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 mb-6">
+                  <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-4">
+                    Biểu đồ Doanh thu theo ngày (Tối đa 7 ngày gần nhất)
+                  </h3>
+                  <div className="space-y-3">
+                    {(() => {
+                      const maxVal = Math.max(...dailyRevenueStats.map((d) => d.total), 1);
+                      return dailyRevenueStats.map((d) => {
+                        const pct = Math.max(8, Math.round((d.total / maxVal) * 100));
+                        return (
+                          <div key={d.date} className="flex items-center gap-3 text-xs">
+                            <span className="w-24 font-bold text-slate-600 shrink-0">{d.date}</span>
+                            <div className="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-800 to-amber-500 rounded-full flex items-center justify-end pr-2.5 text-white font-extrabold text-[11px]"
+                                style={{ width: `${pct}%` }}
+                              >
+                                {d.count} đơn
+                              </div>
+                            </div>
+                            <span className="w-28 text-right font-extrabold text-blue-800 shrink-0">
+                              {d.total.toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase">Giá trị trung bình / đơn</p>
-                  <p className="text-2xl font-extrabold text-primary mt-1">
-                    {completedOrders.length > 0
-                      ? Math.round(totalRevenue / completedOrders.length).toLocaleString('vi-VN')
-                      : 0}{' '}
-                    đ
-                  </p>
+              )}
+
+              {/* Bảng chi tiết các đơn hàng trong báo cáo doanh thu */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-5 mb-6 overflow-x-auto">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">
+                    Chi tiết đơn hàng tính doanh thu ({filteredRevenueOrders.length} đơn)
+                  </h3>
+                  <span className="text-xs font-bold text-slate-500">
+                    TB/đơn:{' '}
+                    <strong className="text-primary">
+                      {filteredRevenueOrders.length > 0
+                        ? Math.round(
+                            filteredTotalRevenue / filteredRevenueOrders.length
+                          ).toLocaleString('vi-VN')
+                        : 0}{' '}
+                      đ
+                    </strong>
+                  </span>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase">Quy mô thực đơn</p>
-                  <p className="text-2xl font-extrabold text-slate-800 mt-1">
-                    {products.length} món kinh doanh
-                  </p>
-                </div>
+                <table className="w-full text-left border-collapse min-w-[620px] text-xs sm:text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-y text-xs uppercase text-slate-500">
+                      <th className="p-3 font-extrabold">Mã đơn</th>
+                      <th className="p-3 font-extrabold">Thời gian</th>
+                      <th className="p-3 font-extrabold">Khách hàng</th>
+                      <th className="p-3 font-extrabold">Món đã đặt</th>
+                      <th className="p-3 font-extrabold">Thanh toán</th>
+                      <th className="p-3 font-extrabold text-right">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRevenueOrders.map((o) => (
+                      <tr key={o._id} className="hover:bg-blue-50/40">
+                        <td className="p-3 font-bold text-slate-500">
+                          #{String(o._id).slice(-6).toUpperCase()}
+                        </td>
+                        <td className="p-3 text-xs text-slate-600">
+                          {o.createdAt ? new Date(o.createdAt).toLocaleString('vi-VN') : '---'}
+                        </td>
+                        <td className="p-3 font-bold text-slate-800">
+                          {o.customer_info?.name || 'Khách'}
+                        </td>
+                        <td className="p-3 text-xs text-slate-600">
+                          {(o.items || []).map((i) => `${i.product_name} (x${i.quantity})`).join(', ')}
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-800 uppercase">
+                            {o.payment_method || 'cod'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-extrabold text-blue-800">
+                          {Number(o.total_amount || 0).toLocaleString('vi-VN')} đ
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredRevenueOrders.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="text-center p-8 text-slate-400">
+                          Không có đơn hàng hoàn tất nào phù hợp với điều kiện lọc hiện tại.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
 
               {/* Khối AI Cố vấn Kinh doanh & Phân tích Doanh thu */}
-              <div className="mt-8 bg-gradient-to-br from-slate-900 via-slate-800 to-orange-950 text-white rounded-3xl p-6 shadow-xl border border-slate-800">
+              <div className="mt-8 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white rounded-3xl p-6 shadow-xl border border-slate-800">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/30 shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-sky-500 flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
                       <Bot className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -1171,7 +1655,7 @@ const AdminPage = ({ user, showToast }) => {
                         <h3 className="text-lg font-extrabold">
                           AI Cố vấn Kinh doanh & Phân tích Dòng tiền
                         </h3>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-400/30 px-2.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2.5 py-0.5 rounded-full">
                           Gemini 4 Hydrogen
                         </span>
                       </div>
@@ -1185,7 +1669,7 @@ const AdminPage = ({ user, showToast }) => {
                     type="button"
                     onClick={handleAnalyzeBusinessAI}
                     disabled={isAnalyzingBiz}
-                    className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-amber-500 hover:from-orange-600 hover:to-amber-500 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-2xl shadow-lg shadow-orange-500/25 transition shrink-0"
+                    className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-sky-500 hover:from-blue-600 hover:to-sky-500 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-2xl shadow-lg shadow-blue-500/25 transition shrink-0"
                   >
                     <Sparkles className={`w-4 h-4 ${isAnalyzingBiz ? 'animate-spin' : ''}`} />
                     <span>
@@ -1197,7 +1681,7 @@ const AdminPage = ({ user, showToast }) => {
                 {aiBizReport ? (
                   <div className="pt-5 space-y-5">
                     <div className="bg-white/10 rounded-2xl p-4 border border-white/10">
-                      <p className="text-xs font-extrabold uppercase tracking-wider text-amber-300 mb-1">
+                      <p className="text-xs font-extrabold uppercase tracking-wider text-sky-300 mb-1">
                         📊 Tổng quan tình hình kinh doanh
                       </p>
                       <p className="text-sm text-slate-100 leading-relaxed">
@@ -1207,7 +1691,7 @@ const AdminPage = ({ user, showToast }) => {
 
                     {Array.isArray(aiBizReport.topDishes) && aiBizReport.topDishes.length > 0 && (
                       <div>
-                        <p className="text-xs font-extrabold uppercase tracking-wider text-orange-300 mb-2.5">
+                        <p className="text-xs font-extrabold uppercase tracking-wider text-blue-300 mb-2.5">
                           🏆 Top món ăn mang lại doanh số cao nhất
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1217,7 +1701,7 @@ const AdminPage = ({ user, showToast }) => {
                               className="bg-white/5 border border-white/10 rounded-2xl p-3.5 flex items-center justify-between"
                             >
                               <div>
-                                <span className="text-[11px] font-bold text-amber-400">
+                                <span className="text-[11px] font-bold text-sky-400">
                                   Hạng #{i + 1}
                                 </span>
                                 <p className="font-extrabold text-sm text-white line-clamp-1">
@@ -1227,7 +1711,7 @@ const AdminPage = ({ user, showToast }) => {
                                   {Number(d.revenue || 0).toLocaleString('vi-VN')} đ
                                 </p>
                               </div>
-                              <span className="bg-orange-500/20 text-orange-300 text-xs font-extrabold px-2.5 py-1 rounded-xl">
+                              <span className="bg-blue-500/20 text-blue-300 text-xs font-extrabold px-2.5 py-1 rounded-xl">
                                 {d.quantity} phần
                               </span>
                             </div>
@@ -1477,7 +1961,7 @@ const AdminPage = ({ user, showToast }) => {
 
                   <button
                     type="submit"
-                    className="bg-primary hover:bg-orange-600 text-white font-extrabold py-3 px-6 rounded-xl shadow-md shadow-orange-500/20 transition"
+                    className="bg-primary hover:bg-blue-600 text-white font-extrabold py-3 px-6 rounded-xl shadow-md shadow-blue-500/20 transition"
                   >
                     Lưu toàn bộ Cấu hình
                   </button>

@@ -10,7 +10,7 @@ const Footer = () => {
           {/* Cột 1: Thương hiệu */}
           <div>
             <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center text-white shadow-md">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-amber-500 flex items-center justify-center text-white shadow-md">
                 <Flame className="w-5 h-5" />
               </div>
               <span className="text-2xl font-extrabold tracking-wider text-white">
@@ -22,10 +22,10 @@ const Footer = () => {
             </p>
             <div className="flex items-center gap-4 text-xs text-slate-400">
               <span className="flex items-center gap-1">
-                <Clock className="w-4 h-4 text-orange-400" /> 07:00 - 22:30
+                <Clock className="w-4 h-4 text-blue-400" /> 07:00 - 22:30
               </span>
               <span className="flex items-center gap-1">
-                <MapPin className="w-4 h-4 text-orange-400" /> Đà Nẵng, Việt Nam
+                <MapPin className="w-4 h-4 text-blue-400" /> Đà Nẵng, Việt Nam
               </span>
             </div>
           </div>
@@ -37,22 +37,22 @@ const Footer = () => {
             </h4>
             <ul className="space-y-2.5 text-sm text-slate-400">
               <li>
-                <Link to="/" className="hover:text-orange-400 transition">
+                <Link to="/" className="hover:text-blue-400 transition">
                   Trang chủ & Gợi ý thông minh
                 </Link>
               </li>
               <li>
-                <Link to="/menu" className="hover:text-orange-400 transition">
+                <Link to="/menu" className="hover:text-blue-400 transition">
                   Thực đơn món ngon mỗi ngày
                 </Link>
               </li>
               <li>
-                <Link to="/cart" className="hover:text-orange-400 transition">
+                <Link to="/cart" className="hover:text-blue-400 transition">
                   Giỏ hàng & Thanh toán VietQR / MoMo
                 </Link>
               </li>
               <li>
-                <Link to="/login" className="hover:text-orange-400 transition">
+                <Link to="/login" className="hover:text-blue-400 transition">
                   Tài khoản thành viên
                 </Link>
               </li>
@@ -61,7 +61,7 @@ const Footer = () => {
 
           {/* Cột 3: Thông tin Đồ án CDIO */}
           <div className="bg-slate-800/60 rounded-2xl p-5 border border-slate-700/70">
-            <div className="flex items-center gap-2 text-orange-400 font-extrabold text-sm uppercase tracking-wider mb-2">
+            <div className="flex items-center gap-2 text-blue-400 font-extrabold text-sm uppercase tracking-wider mb-2">
               <Award className="w-4 h-4" />
               <span>ĐỒ ÁN CDIO - SE 447 C | NHÓM 09</span>
             </div>
@@ -70,7 +70,7 @@ const Footer = () => {
             </p>
             <div className="space-y-1 text-xs text-slate-300 border-t border-slate-700/70 pt-3">
               <p className="font-semibold text-slate-400 flex items-center gap-1.5 mb-1.5">
-                <Users className="w-3.5 h-3.5 text-orange-400" /> Thành viên thực hiện:
+                <Users className="w-3.5 h-3.5 text-blue-400" /> Thành viên thực hiện:
               </p>
               <div className="grid grid-cols-2 gap-1.5 font-medium">
                 <span>1. Đỗ Minh Dược</span>
